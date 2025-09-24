@@ -8,11 +8,6 @@ async function fetchJSON<T>(url: string) {
     if (!r.ok) throw new Error(`HTTP ${r.status} ${url}`);
     return (await r.json()) as T;
 }
-
-function toTitle(s: string) {
-    return s.replace(/-/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
-}
-
 function mapFrom5eApi(s: any): Monster {
     // AC can be array or number
     const ac = Array.isArray(s.armor_class)

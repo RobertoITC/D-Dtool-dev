@@ -8,7 +8,7 @@ export default function InitiativeBar({
                                   orderIndex, round, setOrderIndex, setRound, onAdd, onSort, onClear
                               }:{
     orderIndex: number; round: number;
-    setOrderIndex: (n: number) => void; setRound: (n: number) => void;
+    setOrderIndex: (n: (i: number) => number) => void; setRound: (n: number) => void;
     onAdd: (c: Combatant) => void; onSort: () => void; onClear: () => void;
 }) {
     const [mode, setMode] = useState<AddMode>("player");
@@ -81,12 +81,12 @@ export default function InitiativeBar({
             <div className="flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-2">
                     <button onClick={() => { setOrderIndex(0); setRound(1); }} className="rounded-lg bg-slate-800 px-3 py-1 text-sm hover:bg-slate-700">Start</button>
-                    <button onClick={() => setOrderIndex(i => i + 1)} className="rounded-lg bg-emerald-600 px-3 py-1 text-sm font-semibold hover:bg-emerald-500">Next</button>
-                    <button onClick={() => setOrderIndex(i => Math.max(0, i - 1))} className="rounded-lg bg-slate-800 px-3 py-1 text-sm hover:bg-slate-700">Prev</button>
+                    <button onClick={() => setOrderIndex((i: number) => i + 1)} className="rounded-lg bg-emerald-600 px-3 py-1 text-sm font-semibold hover:bg-emerald-500">Next</button>
+                    <button onClick={() => setOrderIndex((i: number) => Math.max(0, i - 1))} className="rounded-lg bg-slate-800 px-3 py-1 text-sm hover:bg-slate-700">Prev</button>
                     <div className="ml-2 rounded-md bg-white/10 px-2 py-0.5 text-xs text-slate-300">Turn: {orderIndex + 1}</div>
                     <div className="rounded-md bg-white/10 px-2 py-0.5 text-xs text-slate-300">Round: {round}</div>
-                    <button onClick={() => setRound(r => r + 1)} className="rounded-lg bg-slate-800 px-2 py-1 text-xs hover:bg-slate-700">+Round</button>
-                    <button onClick={() => setRound(r => Math.max(1, r - 1))} className="rounded-lg bg-slate-800 px-2 py-1 text-xs hover:bg-slate-700">-Round</button>
+                    <button onClick={() => setRound((r: number) => r + 1)} className="rounded-lg bg-slate-800 px-2 py-1 text-xs hover:bg-slate-700">+Round</button>
+                    <button onClick={() => setRound((r: number) => Math.max(1, r - 1))} className="rounded-lg bg-slate-800 px-2 py-1 text-xs hover:bg-slate-700">-Round</button>
                 </div>
 
                 <div className="ml-auto flex items-center gap-2">
