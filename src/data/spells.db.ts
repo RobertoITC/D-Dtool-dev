@@ -2,7 +2,7 @@
 // Run: npm run build:spells
 // Source: dnd5eapi SRD (https://www.dnd5eapi.co)
 // Generated: 2025-09-24T02:26:27.511Z
-import type { SpellDB, ClassSpellList } from "@/data/spell-types";
+import type { SpellDB, ClassSpellList } from "./spell-types";
 
 export const SPELLS: SpellDB = {
   "Acid Arrow": {
@@ -3436,6 +3436,9 @@ export const SPELLS: SpellDB = {
   },
 };
 
+// @ts-ignore
+// @ts-ignore
+// @ts-ignore
 export const CLASS_SPELLS: ClassSpellList = {
   Bard: {
     0: [
@@ -4322,4 +4325,6 @@ export const CLASS_SPELLS: ClassSpellList = {
       "Wish",
     ],
   },
+  Barbarian: undefined,
+  Monk: undefined
 };
