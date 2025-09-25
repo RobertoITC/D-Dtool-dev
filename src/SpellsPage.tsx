@@ -1,63 +1,122 @@
+// src/SpellsPage.tsx
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import type { ClassId } from "./data/types";
-import { getSpellsForClassByLevel } from "./data/spells.helpers";
-import { SPELLS } from "./data/spells.db";
-import { SpellList } from "./components/spells/SpellList";
-import { SpellFilters } from "./components/spells/SpellFilters";
+import type { Spell, SpellByClassMap, SpellClass, SpellLevel } from "./data/spell-types";
+import SPELLS from "./data/spells.db"; // importa tu DB de conjuros
+const ALL_LEVELS = [0,1,2,3,4,5,6,7,8,9] as const satisfies readonly SpellLevel[];
+const ALL_CLASSES: SpellClass[] = [
+    "bard","cleric","druid","paladin","ranger","sorcerer","warlock","wizard",
+    // quita/añade los que uses en tu DB (si tienes artificer, etc.)
+];
 
 export default function SpellsPage() {
-    const [cls, setCls] = useState<ClassId>("Wizard");
-    const [level, setLevel] = useState<number | "all">("all");
-    const [q, setQ] = useState("");
+    const [q, setQ] = useState<string>("");
+    const [cls, setCls] = useState<SpellClass>("wizard");     // clase por defecto
+    const [lvl, setLvl] = useState<SpellLevel | "all">("all"); // nivel seleccionado
 
-    const groups = useMemo(() => {
-        // Base groups for the chosen class
-        const byLevel = getSpellsForClassByLevel(cls);
+    // Filtro base (texto + clase)
+    const baseFiltered: Spell[] = useMemo(() => {
+        const qq = q.trim().toLowerCase();
+        return SPELLS.filter((s: Spell) => {
+            const passClass = s.classes.includes(cls);
+            const passText =
+                qq.length === 0 ||
+                s.name.toLowerCase().includes(qq) ||
+                (s.desc ? s.desc.toLowerCase().includes(qq) : false);
+            return passClass && passText;
+        }).sort((a: Spell, b: Spell) => a.name.localeCompare(b.name));
+    }, [q, cls]);
 
-        // Filter by spell level
-        const levelFiltered: Record<number, typeof byLevel[0]> = {};
-        const levels = level === "all" ? Object.keys(byLevel).map(Number) : [level];
-        for (const L of levels) {
-            const list = byLevel[L] || [];
-            levelFiltered[L] = list;
-        }
-
-        // Search filter across names & short text
-        const query = q.trim().toLowerCase();
-        if (!query) return levelFiltered;
-
-        const out: typeof levelFiltered = {};
-        for (const L of Object.keys(levelFiltered).map(Number)) {
-            out[L] = levelFiltered[L].filter(s =>
-                s.id.toLowerCase().includes(query) ||
-                s.short.toLowerCase().includes(query) ||
-                SPELLS[s.id].school.toLowerCase().includes(query)
-            );
-        }
-        // Drop empty groups
-        for (const k of Object.keys(out)) {
-            if (out[Number(k)].length === 0) delete (out as any)[k];
-        }
+    // Particiona por nivel
+    const byLevel: Record<SpellLevel, Spell[]> = useMemo(() => {
+        const out: Record<SpellLevel, Spell[]> = {0:[],1:[],2:[],3:[],4:[],5:[],6:[],7:[],8:[],9:[]};
+        for (const s of baseFiltered) out[s.level].push(s);
+        for (const L of ALL_LEVELS) out[L].sort((a: Spell, b: Spell) => a.name.localeCompare(b.name));
         return out;
-    }, [cls, level, q]);
+    }, [baseFiltered]);
+
+    // Nivel activo
+    const activeLevels: readonly SpellLevel[] =
+        lvl === "all" ? ALL_LEVELS : [lvl];
 
     return (
         <div className="mx-auto max-w-7xl px-4 py-6">
-            <header className="mb-4 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-                <div>
-                    <h1 className="text-3xl font-black tracking-tight">Spells by Class & Level</h1>
-                    <p className="text-slate-400">Browse SRD-style spells per class, grouped by level. Click a spell to see details and open its Compendium page.</p>
-                </div>
-                <div className="flex gap-2">
-                    <Link to="/" className="rounded-xl bg-slate-800 px-4 py-2 text-sm hover:bg-slate-700">← Ambience DJ</Link>
-                    <Link to="/levels" className="rounded-xl bg-slate-800 px-4 py-2 text-sm hover:bg-slate-700">Level-Up Cards</Link>
-                </div>
+            <header className="mb-4">
+                <h1 className="text-3xl font-black tracking-tight">Spells</h1>
+                <p className="text-slate-400">Filtra por clase, nivel y texto.</p>
             </header>
 
-            <SpellFilters cls={cls} setCls={setCls} level={level} setLevel={setLevel} q={q} setQ={setQ} />
+            {/* Filtros */}
+            <section className="mb-4 grid gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 md:grid-cols-4">
+                <div className="md:col-span-2">
+                    <label className="block text-xs uppercase tracking-widest text-slate-400">Buscar</label>
+                    <input
+                        value={q}
+                        onChange={(e) => setQ(e.target.value)}
+                        placeholder="Fireball, Cure Wounds…"
+                        className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-600"
+                    />
+                </div>
 
-            <SpellList groups={groups} />
+                <div>
+                    <label className="block text-xs uppercase tracking-widest text-slate-400">Clase</label>
+                    <select
+                        value={cls}
+                        onChange={(e) => setCls(e.target.value as SpellClass)}
+                        className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                    >
+                        {ALL_CLASSES.map((c) => (
+                            <option key={c} value={c}>{c}</option>
+                        ))}
+                    </select>
+                </div>
+
+                <div>
+                    <label className="block text-xs uppercase tracking-widest text-slate-400">Nivel</label>
+                    <select
+                        value={String(lvl)}
+                        onChange={(e) => {
+                            const v = e.target.value;
+                            setLvl(v === "all" ? "all" : (Number(v) as SpellLevel));
+                        }}
+                        className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                    >
+                        <option value="all">Todos</option>
+                        {ALL_LEVELS.map((L) => (
+                            <option key={L} value={L}>{L === 0 ? "Trucos (0)" : `Nivel ${L}`}</option>
+                        ))}
+                    </select>
+                </div>
+            </section>
+
+            {/* Listado */}
+            <section className="grid gap-4">
+                {activeLevels.map((L) => {
+                    const list: Spell[] = byLevel[L]; // <- tipado explícito
+                    if (!list || list.length === 0) return null;
+                    return (
+                        <div key={L} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                            <h2 className="mb-2 text-lg font-bold">
+                                {L === 0 ? "Trucos (Nivel 0)" : `Nivel ${L}`}
+                            </h2>
+                            <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                                {list.map((s: Spell) => (
+                                    <li key={s.id} className="rounded-lg border border-white/10 bg-black/30 p-3">
+                                        <div className="mb-1 font-semibold">{s.name}</div>
+                                        <div className="text-xs text-slate-400">
+                                            {s.school} • {s.ritual ? "Ritual • " : ""}{s.concentration ? "Concentración" : ""}
+                                        </div>
+                                        {s.desc && <p className="mt-2 line-clamp-4 text-sm text-slate-200">{s.desc}</p>}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    );
+                })}
+                {/* Si no hay nada en ningún nivel */}
+                {activeLevels.every((L) => byLevel[L].length === 0) && (
+                    <p className="text-sm text-slate-400">No hay conjuros que coincidan con tu filtro.</p>
+                )}
+            </section>
         </div>
     );
 }

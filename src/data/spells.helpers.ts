@@ -1,30 +1,29 @@
-import { SPELLS, CLASS_SPELLS } from "./spells.db";
-import type { ClassId } from "./types.ts";
-import type { Spell } from "./spell-types";
-
-export function compendiumUrlForSpell(name: string) {
-    return `https://roll20.net/compendium/dnd5e/${encodeURIComponent(name)}#content`;
+import type { Spell, SpellByClassMap, SpellClass, SpellLevel } from "./spell-types";
+// Ordena por nombre
+export function sortByName(a: Spell, b: Spell): number {
+    return a.name.localeCompare(b.name);
 }
 
-export function getSpellsForClassByLevel(cls: ClassId): Record<number, Spell[]> {
-    const listing = CLASS_SPELLS[cls] || {};
-    const out: Record<number, Spell[]> = {};
-    for (const lvlStr of Object.keys(listing)) {
-        const lvl = Number(lvlStr);
-        out[lvl] = (listing[lvl] || [])
-            .map((id) => SPELLS[id])
-            .filter(Boolean)
-            .sort((a, b) => a.id.localeCompare(b.id));
+// Indexa por clase y nivel
+export function indexByClassAndLevel(spells: Spell[]): SpellByClassMap {
+    const map: SpellByClassMap = {};
+    for (const s of spells) {
+        for (const cls of s.classes) {
+            const byLevel = (map[cls] ||= {});
+            const bucket = (byLevel[s.level] ||= []);
+            bucket.push(s);
+        }
     }
-    return out;
+    // ordena cada bucket
+    for (const cls of Object.keys(map) as SpellClass[]) {
+        const byLevel = map[cls]!;
+        for (const lvl of Object.keys(byLevel) as unknown as SpellLevel[]) {
+            byLevel[lvl]!.sort(sortByName);
+        }
+    }
+    return map;
 }
 
-export function allLevelsPresent(cls: ClassId): number[] {
-    return Object.keys(CLASS_SPELLS[cls] || {}).map(n => Number(n)).sort((a,b) => a-b);
-}
-
-export function searchSpellNames(query: string): string[] {
-    const q = query.trim().toLowerCase();
-    if (!q) return Object.keys(SPELLS);
-    return Object.keys(SPELLS).filter(n => n.toLowerCase().includes(q));
-}
+// Util para construir IDs/anchors
+export const toId = (name: string): string =>
+    name.toLowerChttps://github.com/RobertoITC/D-Dtool-dev.gitase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");

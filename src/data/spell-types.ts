@@ -1,23 +1,29 @@
-import type { ClassId } from "./types";
+export type SpellLevel = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+export type SpellClass =
+    | "barbarian" | "bard" | "cleric" | "druid" | "fighter" | "monk"
+    | "paladin" | "ranger" | "rogue" | "sorcerer" | "warlock" | "wizard"
+    | "artificer";
 
-export type SpellId = string;
+export type Spell = {
+    id: string;            // slug
+    name: string;
+    level: SpellLevel;
+    school: string;
+    classes: SpellClass[];
+    components?: { v?: boolean; s?: boolean; m?: string };
+    casting_time
 
-export type School =
-    | "Abjuration" | "Conjuration" | "Divination" | "Enchantment"
-    | "Evocation"  | "Illusion"    | "Necromancy" | "Transmutation";
 
-export interface Spell {
-    id: SpellId;
-    level: number;
-    school: School | string;
-    ritual?: boolean;
+        ?: string;
+    range?: string;
+    duration?: string;
     concentration?: boolean;
-    castingTime: string;
-    range: string;
-    duration: string;
-    components: string;
-    short: string;
-}
+    ritual?: boolean;
+    desc?: string;
+};
 
-export type SpellDB = Record<SpellId, Spell>;
-export type ClassSpellList = Record<ClassId, Record<number, SpellId[]>>;
+export type SpellByClassMap = {
+    [K in SpellClass]?: {
+        [L in SpellLevel]?: Spell[];
+    };
+};

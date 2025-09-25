@@ -1,140 +1,82 @@
-import { useEffect, useMemo, useState } from "react";
-import type { Combatant } from "../../data/monster-types";
-import { searchMonsters, getMonsterByRef, getMonsterByName } from "../../services/monsters";
+import { useEffect, useState } from "react";
 
-type AddMode = "player" | "monster" | "npc";
+type Actor = {
+    id: string;
+    name: string;
+    init: number;
+    hp?: number;
+    isPC?: boolean;
+};
 
-export default function InitiativeBar({
-                                  orderIndex, round, setOrderIndex, setRound, onAdd, onSort, onClear
-                              }:{
-    orderIndex: number; round: number;
-    setOrderIndex: (n: (i: number) => number) => void; setRound: (n: number) => void;
-    onAdd: (c: Combatant) => void; onSort: () => void; onClear: () => void;
-}) {
-    const [mode, setMode] = useState<AddMode>("player");
-    const [name, setName] = useState("");
-    const [init, setInit] = useState<number>(10);
-    const [hp, setHp] = useState<number>(10);
-    const [ac, setAc] = useState<number>(10);
-    const [suggestions, setSuggestions] = useState<{ name: string; ref: any }[]>([]);
-    const [busy, setBusy] = useState(false);
+type Props = {
+    actors: Actor[];
+    onChangeOrder?: (ordered: Actor[]) => void;
+};
+
+export default function InitiativeBar({ actors, onChangeOrder }: Props) {
+    // 👇 estados numéricos (no funciones)
+    const [round, setRound] = useState<number>(1);
+    const [turnIndex, setTurnIndex] = useState<number>(0);
+
+    // ordenar por iniciativa desc, estable
+    const ordered = [...actors].sort((a, b) => (b.init - a.init) || a.name.localeCompare(b.name));
 
     useEffect(() => {
-        let stop = false;
-        (async () => {
-            if (mode !== "monster" || name.trim().length < 2) { setSuggestions([]); return; }
-            try {
-                const picks = await searchMonsters(name);
-                if (!stop) setSuggestions(picks);
-            } catch { if (!stop) setSuggestions([]); }
-        })();
-        return () => { stop = true; };
-    }, [mode, name]);
+        onChangeOrder?.(ordered);
+    }, [ordered, onChangeOrder]);
 
-    async function addCombatant() {
-        setBusy(true);
-        try {
-            if (mode === "monster") {
-                // Try resolve by suggestions or direct name
-                let mon = null;
-                if (suggestions.length) {
-                    mon = await getMonsterByRef(suggestions[0].ref);
-                } else {
-                    mon = await getMonsterByName(name);
-                }
-                const baseHp = mon?.hp ?? hp;
-                const c: Combatant = {
-                    id: crypto.randomUUID(),
-                    name: mon?.id ?? (name || "Monster"),
-                    type: "monster",
-                    initiative: init,
-                    maxHp: baseHp,
-                    hp: baseHp,
-                    ac: mon?.ac ?? ac,
-                    statuses: [],
-                    meta: { size: mon?.size, type: mon?.type, cr: mon?.cr },
-                };
-                onAdd(c);
-                // reset only name to add multiples quickly
-                setName("");
-            } else {
-                const c: Combatant = {
-                    id: crypto.randomUUID(),
-                    name: name || (mode === "npc" ? "NPC" : "Player"),
-                    type: mode,
-                    initiative: init,
-                    maxHp: hp,
-                    hp: hp,
-                    ac,
-                    statuses: [],
-                };
-                onAdd(c);
-                setName("");
-            }
-        } finally {
-            setBusy(false);
-        }
+    const total = ordered.length;
+
+    function prevTurn() {
+        if (total === 0) return;
+        setTurnIndex((i) => {
+            const next = (i - 1 + total) % total;
+            // si damos la vuelta hacia atrás, baja de ronda pero nunca < 1
+            if (next === total - 1) setRound((r) => Math.max(1, r - 1));
+            return next;
+        });
+    }
+
+    function nextTurn() {
+        if (total === 0) return;
+        setTurnIndex((i) => {
+            const next = (i + 1) % total;
+            // si volvemos a 0, sube ronda
+            if (next === 0) setRound((r) => r + 1);
+            return next;
+        });
     }
 
     return (
-        <section className="grid gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur">
-            <div className="flex flex-wrap items-center gap-3">
-                <div className="flex items-center gap-2">
-                    <button onClick={() => { setOrderIndex(0); setRound(1); }} className="rounded-lg bg-slate-800 px-3 py-1 text-sm hover:bg-slate-700">Start</button>
-                    <button onClick={() => setOrderIndex((i: number) => i + 1)} className="rounded-lg bg-emerald-600 px-3 py-1 text-sm font-semibold hover:bg-emerald-500">Next</button>
-                    <button onClick={() => setOrderIndex((i: number) => Math.max(0, i - 1))} className="rounded-lg bg-slate-800 px-3 py-1 text-sm hover:bg-slate-700">Prev</button>
-                    <div className="ml-2 rounded-md bg-white/10 px-2 py-0.5 text-xs text-slate-300">Turn: {orderIndex + 1}</div>
-                    <div className="rounded-md bg-white/10 px-2 py-0.5 text-xs text-slate-300">Round: {round}</div>
-                    <button onClick={() => setRound((r: number) => r + 1)} className="rounded-lg bg-slate-800 px-2 py-1 text-xs hover:bg-slate-700">+Round</button>
-                    <button onClick={() => setRound((r: number) => Math.max(1, r - 1))} className="rounded-lg bg-slate-800 px-2 py-1 text-xs hover:bg-slate-700">-Round</button>
-                </div>
-
-                <div className="ml-auto flex items-center gap-2">
-                    <button onClick={onSort} className="rounded-lg bg-slate-800 px-3 py-1 text-sm hover:bg-slate-700">Sort by Initiative</button>
-                    <button onClick={onClear} className="rounded-lg bg-rose-700 px-3 py-1 text-sm hover:bg-rose-600">Clear</button>
-                </div>
-            </div>
-
-            <div className="mt-2 grid gap-2 md:grid-cols-12">
-                <div className="md:col-span-2">
-                    <label className="block text-xs uppercase tracking-widest text-slate-400">Type</label>
-                    <select value={mode} onChange={(e)=>setMode(e.target.value as AddMode)} className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm">
-                        <option value="player">Player</option>
-                        <option value="npc">NPC</option>
-                        <option value="monster">Monster</option>
-                    </select>
-                </div>
-                <div className="md:col-span-4">
-                    <label className="block text-xs uppercase tracking-widest text-slate-400">{mode === "monster" ? "Monster name" : "Name"}</label>
-                    <input value={name} onChange={(e)=>setName(e.target.value)} placeholder={mode === "monster" ? "Goblin, Adult Red Dragon…" : "Arannis, Serena…"} className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm" />
-                    {mode === "monster" && suggestions.length > 0 && (
-                        <div className="mt-1 max-h-40 overflow-auto rounded-xl border border-white/10 bg-black/40 text-sm">
-                            {suggestions.map(s => (
-                                <button key={(s.ref.index || s.ref.slug || s.name)} onClick={() => setName(s.name)} className="block w-full truncate px-3 py-1 text-left hover:bg-white/10">
-                                    {s.name}
-                                </button>
-                            ))}
-                        </div>
-                    )}
-                </div>
-                <div className="md:col-span-2">
-                    <label className="block text-xs uppercase tracking-widest text-slate-400">Initiative</label>
-                    <input type="number" value={init} onChange={(e)=>setInit(Number(e.target.value))} className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm" />
-                </div>
-                <div className="md:col-span-2">
-                    <label className="block text-xs uppercase tracking-widest text-slate-400">HP</label>
-                    <input type="number" value={hp} onChange={(e)=>setHp(Number(e.target.value))} className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm" />
-                </div>
-                <div className="md:col-span-2">
-                    <label className="block text-xs uppercase tracking-widest text-slate-400">AC</label>
-                    <input type="number" value={ac} onChange={(e)=>setAc(Number(e.target.value))} className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm" />
-                </div>
-                <div className="md:col-span-12">
-                    <button disabled={busy} onClick={addCombatant} className="w-full rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold hover:bg-emerald-500 disabled:opacity-60">
-                        {busy ? "Adding…" : "Add to Tracker"}
+        <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+            <div className="mb-2 flex items-center justify-between">
+                <div className="text-sm font-semibold">Ronda {round}</div>
+                <div className="flex gap-2">
+                    <button onClick={prevTurn} className="rounded-lg bg-slate-800 px-3 py-1 text-sm hover:bg-slate-700">
+                        ← Anterior
+                    </button>
+                    <button onClick={nextTurn} className="rounded-lg bg-emerald-600 px-3 py-1 text-sm text-white hover:bg-emerald-500">
+                        Siguiente →
                     </button>
                 </div>
             </div>
-        </section>
+
+            <ol className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {ordered.map((a, idx) => (
+                    <li
+                        key={a.id}
+                        className={`rounded-lg px-3 py-2 ${idx === turnIndex ? "bg-emerald-600/20 border border-emerald-600/40" : "bg-black/30 border border-white/10"}`}
+                    >
+                        <div className="flex items-center justify-between">
+              <span className="truncate">
+                <span className="text-xs text-slate-400">#{idx + 1}</span>{" "}
+                  <span className="font-medium">{a.name}</span>
+              </span>
+                            <span className="text-xs text-slate-400">INIT {a.init}</span>
+                        </div>
+                    </li>
+                ))}
+            </ol>
+        </div>
     );
 }
