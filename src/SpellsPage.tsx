@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { Spell, SpellClass, SpellLevel } from "./data/spell-types";
 import { SPELLS } from "./data/spells.db";
 import SpellCard from "./components/spells/SpellCard";
