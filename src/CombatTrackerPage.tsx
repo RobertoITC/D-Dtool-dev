@@ -15,7 +15,12 @@ export default function CombatTrackerPage() {
     const [list, setList] = useState<Combatant[]>([]);
     const [orderIndex, setOrderIndex] = useState(0);
     const [round, setRound] = useState(1);
+    const [combatants] = useState<{ id: string; name: string; initiative: number }[]>([]);
 
+    const actors = useMemo(
+        () => combatants.map(c => ({ id: c.id, name: c.name, init: c.initiative })),
+        [combatants]
+    );
     // Load / save
     useEffect(() => {
         try {
@@ -81,6 +86,7 @@ export default function CombatTrackerPage() {
                 onAdd={add}
                 onSort={() => setList(prev => [...prev].sort(sortByInit))}
                 onClear={clear}
+                actors={actors} onChangeOrder={() => {/* optional */}}
             />
 
             <section className="mt-4 grid gap-3">

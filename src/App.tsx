@@ -4,9 +4,10 @@ import PlayerHome from "./PlayerHome";
 import DMHome from "./DMHome";
 import AmbienceDJ from "./AmbienceDJ";
 import LevelUpCards from "./LevelUpCards";
-import SpellsPage from "./SpellsPage";
 import CombatTrackerPage from "./CombatTrackerPage";
 import RuleDetailPage from "./wiki/RuleDetailPage.tsx";
+import SpellsPage from "./SpellsPage";
+import SpellDetailPage from "./SpellsDetailPage";
 
 export default function App() {
     return (
@@ -19,6 +20,7 @@ export default function App() {
                     <Route path="/dj" element={<AmbienceDJ />} />
                     <Route path="/levels" element={<LevelUpCards />} />
                     <Route path="/spells" element={<SpellsPage />} />
+                    <Route path="/spells/:id" element={<SpellDetailPage />} />
                     <Route path="/combat" element={<CombatTrackerPage />} />
                     <Route path="/wiki/:slug" element={<RuleDetailPage />} />
                     <Route

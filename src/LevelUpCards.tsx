@@ -166,9 +166,7 @@ export default function LevelUpCards() {
                     <Link to="/" className="rounded-xl bg-slate-800 px-4 py-2 text-sm hover:bg-slate-700">
                         ← Home
                     </Link>
-                    <Link to="/dj" className="rounded-xl bg-slate-800 px-4 py-2 text-sm hover:bg-slate-700">
-                        Ambience DJ
-                    </Link>
+
                 </div>
             </header>
 
