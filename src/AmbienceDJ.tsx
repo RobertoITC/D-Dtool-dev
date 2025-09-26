@@ -1,119 +1,114 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type {Deck, Preset, Track} from "./types";
-import { clamp01, defaultNameFromUrl, parseYouTubeId, uid } from "./lib/utils";
+import { useMemo, useState } from "react";
+import type { Track } from "./types";
+import { clamp01, defaultNameFromUrl, parseYouTubeId, uid, youtubeThumb } from "./lib/utils.ts";
 import TrackItem from "./components/TrackRow/TrackItem";
-import PresetManager from "./components/TrackRow/PresetManager";
 
 export default function AmbienceDJ() {
     const [tracks, setTracks] = useState<Track[]>([]);
-    const [master, setMaster] = useState(0.9);
-    const [xfader, setXfader] = useState(0.5); // 0 = sólo A, 1 = sólo B
+    const [master, setMaster] = useState(0.95);
 
-    // --- agregar pista ---
-    const addTrack = useCallback((url: string, name?: string, deck: Deck = "A") => {
-        const kind = parseYouTubeId(url) ? "youtube" : "audio";
-        const t: Track = {
-            id: uid(),
-            name: name?.trim() || defaultNameFromUrl(url),
-            kind,
-            url: url.trim(),
-            gain: 0.8,
-            muted: false,
-            solo: false,
-            playing: false,
-            deck,
-        };
-        setTracks((xs) => [...xs, t]);
-    }, []);
-
-    // --- acciones por pista ---
-    const removeTrack = (id: string) => setTracks((xs) => xs.filter((t) => t.id !== id));
-    const togglePlay = (id: string) => setTracks((xs) => xs.map((t) => t.id === id ? { ...t, playing: !t.playing } : t));
-    const setGain = (id: string, v: number) => setTracks((xs) => xs.map((t) => t.id === id ? { ...t, gain: clamp01(v) } : t));
-    const toggleMute = (id: string) => setTracks((xs) => xs.map((t) => t.id === id ? { ...t, muted: !t.muted } : t));
-    const toggleSolo = (id: string) => setTracks((xs) => {
-        const isSolo = xs.find((t) => t.id === id)?.solo;
-        return xs.map((t) => t.id === id ? { ...t, solo: !t.solo } : { ...t, solo: isSolo ? false : t.solo });
-    });
-    const setDeck = (id: string, d: Deck) => setTracks((xs) => xs.map((t) => t.id === id ? { ...t, deck: d } : t));
-
-    // --- solo/mute logic + xfader ---
-    const anySolo = tracks.some((t) => t.solo);
-    const mixGain = useCallback((t: Track) => {
-        if (t.muted) return 0;
-        if (anySolo && !t.solo) return 0;
-        const a = 1 - xfader;
-        const b = xfader;
-        const deckGain = t.deck === "A" ? a : b;
-        return clamp01(t.gain * master * deckGain);
-    }, [anySolo, master, xfader]);
-
-    // --- atajos de teclado ---
-    useEffect(() => {
-        const onKey = (e: KeyboardEvent) => {
-            if (e.target && (e.target as HTMLElement).tagName === "INPUT") return;
-            if (e.code === "Space") { // Play/Pause todo
-                e.preventDefault();
-                const anyPlaying = tracks.some((t) => t.playing);
-                setTracks((xs) => xs.map((t) => ({ ...t, playing: !anyPlaying })));
-            }
-            if (e.key.toLowerCase() === "m") { // Mute all
-                setTracks((xs) => xs.map((t) => ({ ...t, muted: !xs.every((y) => y.muted) })));
-            }
-            if (e.key.toLowerCase() === "s") { // Clear solo
-                setTracks((xs) => xs.map((t) => ({ ...t, solo: false })));
-            }
-            // 1..9: toggle play de la pista i
-            const num = Number(e.key);
-            if (Number.isInteger(num) && num >= 1 && num <= 9) {
-                const idx = num - 1;
-                const id = tracks[idx]?.id;
-                if (id) togglePlay(id);
-            }
-        };
-        window.addEventListener("keydown", onKey);
-        return () => window.removeEventListener("keydown", onKey);
-    }, [tracks, togglePlay]);
-
-    // --- cargar preset ---
-    const handleLoadPreset = (p: Preset) => {
-        setTracks(p.tracks);
-        setMaster(p.master);
-        setXfader(p.xfader);
-    };
-
-    // --- UI helpers ---
     const [url, setUrl] = useState("");
     const [name, setName] = useState("");
-    const [deck, setDeckSel] = useState<Deck>("A");
 
-    function addFromForm() {
-        if (!url.trim()) return;
-        addTrack(url, name, deck);
+    function addTrack() {
+        const raw = url.trim();
+        if (!raw) return;
+
+        const ytId = parseYouTubeId(raw);
+        const isYT = !!ytId;
+
+        const t: Track = {
+            id: uid(),
+            name: (name || defaultNameFromUrl(raw)).trim(),
+            kind: isYT ? "youtube" : "audio",
+            url: raw,
+            gain: 0.8,
+            muted: false,
+            playing: false,
+            // thumbnail automático si es YouTube
+            coverUrl: ytId ? youtubeThumb(ytId, "hq") : undefined,
+        };
+
+        setTracks((xs) => [t, ...xs]);
         setUrl("");
         setName("");
     }
 
-    const left = useMemo(() => tracks.filter((t) => t.deck === "A"), [tracks]);
-    const right = useMemo(() => tracks.filter((t) => t.deck === "B"), [tracks]);
+    const togglePlay = (id: string) =>
+        setTracks((xs) => xs.map((t) => (t.id === id ? { ...t, playing: !t.playing } : t)));
+
+    const setGain = (id: string, v: number) =>
+        setTracks((xs) => xs.map((t) => (t.id === id ? { ...t, gain: clamp01(v) } : t)));
+
+    const toggleMute = (id: string) =>
+        setTracks((xs) => xs.map((t) => (t.id === id ? { ...t, muted: !t.muted } : t)));
+
+    const removeTrack = (id: string) =>
+        setTracks((xs) => xs.filter((t) => t.id !== id));
+
+    const anyPlaying = useMemo(() => tracks.some((t) => t.playing), [tracks]);
+
+    function playPauseAll() {
+        setTracks((xs) => xs.map((t) => ({ ...t, playing: !anyPlaying })));
+    }
+    function stopAll() {
+        setTracks((xs) => xs.map((t) => ({ ...t, playing: false })));
+    }
+    function muteAllToggle() {
+        const allMuted = tracks.every((t) => t.muted);
+        setTracks((xs) => xs.map((t) => ({ ...t, muted: !allMuted })));
+    }
+    function clearAll() {
+        if (confirm("¿Eliminar todas las pistas?")) setTracks([]);
+    }
 
     return (
-        <div className="mx-auto max-w-7xl px-4 py-6">
-            <header className="mb-6">
-                <h1 className="text-3xl font-black tracking-tight">Ambience DJ</h1>
-                <p className="text-slate-400">
-                    Mezcla pistas (YouTube o audio) con volumen por pista, solo/mute, crossfader A/B y presets.
-                    Tip: Presiona <kbd className="rounded bg-black/40 px-1">Space</kbd> para Play/Pause global.
-                </p>
+        <div className="relative mx-auto max-w-7xl px-4 py-8">
+
+            {/* Header */}
+            <header className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                    <h1 className="text-4xl font-black tracking-tight">
+                        Ambience DJ <span className="text-emerald-400">(Simple)</span>
+                    </h1>
+                    <p className="text-slate-400">
+                        Reproduce varios videos/audio a la vez. Controla volumen por pista, pausa y elimina. Miniatura automática en YouTube.
+                    </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                    <button
+                        onClick={playPauseAll}
+                        className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
+                    >
+                        {anyPlaying ? "Pausar todo" : "Reproducir todo"}
+                    </button>
+                    <button
+                        onClick={stopAll}
+                        className="rounded-xl bg-slate-800 px-4 py-2 text-sm hover:bg-slate-700"
+                    >
+                        Detener todo
+                    </button>
+                    <button
+                        onClick={muteAllToggle}
+                        className="rounded-xl bg-slate-800 px-4 py-2 text-sm hover:bg-slate-700"
+                    >
+                        Mute global
+                    </button>
+                    <button
+                        onClick={clearAll}
+                        className="rounded-xl bg-rose-600/90 px-4 py-2 text-sm text-white hover:bg-rose-600"
+                    >
+                        Limpiar
+                    </button>
+                </div>
             </header>
 
-            {/* Panel de control global */}
-            <section className="mb-4 grid gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 sm:grid-cols-2">
-                <div>
-                    <label className="flex items-center justify-between text-xs text-slate-400">
-                        <span>Volumen maestro</span>
-                        <span className="tabular-nums">{Math.round(master * 100)}%</span>
-                    </label>
+            {/* Maestro */}
+            <section className="mb-5 rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur">
+                <label className="mb-2 block text-xs uppercase tracking-widest text-slate-400">
+                    Volumen maestro
+                </label>
+                <div className="flex items-center gap-4">
                     <input
                         type="range"
                         min={0}
@@ -121,104 +116,59 @@ export default function AmbienceDJ() {
                         step={0.01}
                         value={master}
                         onChange={(e) => setMaster(Number(e.target.value))}
-                        className="w-full"
+                        className="w-full accent-fuchsia-500"
                     />
-                </div>
-                <div>
-                    <label className="flex items-center justify-between text-xs text-slate-400">
-                        <span>Crossfader (A ↔ B)</span>
-                        <span className="tabular-nums">{Math.round(xfader * 100)}%</span>
-                    </label>
-                    <input
-                        type="range"
-                        min={0}
-                        max={1}
-                        step={0.01}
-                        value={xfader}
-                        onChange={(e) => setXfader(Number(e.target.value))}
-                        className="w-full"
-                    />
+                    <span className="w-12 text-right text-sm tabular-nums">
+            {Math.round(master * 100)}%
+          </span>
                 </div>
             </section>
 
-            {/* Formulario de añadir pista */}
-            <section className="mb-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-                <div className="grid gap-3 md:grid-cols-5">
+            {/* Añadir pista */}
+            <section className="mb-6 rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur">
+                <div className="grid gap-3 md:grid-cols-12">
                     <input
                         value={url}
                         onChange={(e) => setUrl(e.target.value)}
                         placeholder="Pega URL de YouTube o .mp3/.ogg/.wav"
-                        className="md:col-span-2 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-600"
+                        className="md:col-span-8 rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm"
                     />
                     <input
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         placeholder="Nombre (opcional)"
-                        className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-600"
+                        className="md:col-span-3 rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm"
                     />
-                    <select
-                        value={deck}
-                        onChange={(e) => setDeckSel(e.target.value as Deck)}
-                        className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
-                    >
-                        <option value="A">Deck A</option>
-                        <option value="B">Deck B</option>
-                    </select>
                     <button
-                        onClick={addFromForm}
-                        className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
+                        onClick={addTrack}
+                        className="md:col-span-1 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500"
                     >
-                        Añadir pista
+                        Añadir
                     </button>
                 </div>
+                <p className="mt-2 text-xs text-slate-500">
+                    Tip: pulsa <b>Reproducir todo</b> una vez para habilitar audio en el navegador.
+                </p>
             </section>
 
-            {/* Mixer A/B responsive */}
-            <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-                    <h3 className="mb-2 text-sm font-semibold">Deck A</h3>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                        {left.length === 0 && <p className="text-xs text-slate-400">No hay pistas en A.</p>}
-                        {left.map((t) => (
-                            <TrackItem
-                                key={t.id}
-                                t={t}
-                                gainApplied={mixGain(t)}
-                                onTogglePlay={togglePlay}
-                                onGain={setGain}
-                                onMute={toggleMute}
-                                onSolo={toggleSolo}
-                                onDeck={setDeck}
-                                onRemove={removeTrack}
-                            />
-                        ))}
+            {/* Pistas */}
+            <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {tracks.length === 0 && (
+                    <div className="rounded-2xl border border-dashed border-white/15 bg-white/5 p-6 text-center text-slate-400">
+                        No hay pistas todavía. Agrega una URL arriba para empezar 🎶
                     </div>
-                </div>
-
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-                    <h3 className="mb-2 text-sm font-semibold">Deck B</h3>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                        {right.length === 0 && <p className="text-xs text-slate-400">No hay pistas en B.</p>}
-                        {right.map((t) => (
-                            <TrackItem
-                                key={t.id}
-                                t={t}
-                                gainApplied={mixGain(t)}
-                                onTogglePlay={togglePlay}
-                                onGain={setGain}
-                                onMute={toggleMute}
-                                onSolo={toggleSolo}
-                                onDeck={setDeck}
-                                onRemove={removeTrack}
-                            />
-                        ))}
-                    </div>
-                </div>
-            </section>
-
-            {/* Presets */}
-            <section className="mt-4">
-                <PresetManager tracks={tracks} master={master} xfader={xfader} onLoad={handleLoadPreset} />
+                )}
+                {tracks.map((t) => (
+                    <TrackItem
+                        key={t.id}
+                        t={t}
+                        master={master}
+                        onTogglePlay={togglePlay}
+                        onGain={setGain}
+                        onMute={toggleMute}
+                        onRemove={removeTrack}
+                    />
+                ))}
             </section>
         </div>
     );
